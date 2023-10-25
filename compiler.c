@@ -413,13 +413,20 @@ Node *node_boolean() {
   error("expected boolean");
 }
 
-Node *inner_list() {
+Node *const_value(bool quoted);
+
+Node *inner_list(bool quoted) {
   int max_item_length = 10;
   Node **item = calloc(max_item_length, sizeof(Node *));
   int item_length = 0;
   while (!consume_rparen()) {
-    Node *node = expr();
-    item[item_length] = node;
+    if (quoted) {
+      Node *node = const_value(1);
+      item[item_length] = node;
+    } else {
+      Node *node = expr();
+      item[item_length] = node;
+    }
     item_length++;
     if (item_length > max_item_length) {
       Node **new_item = realloc(item, max_item_length * 2);
@@ -436,20 +443,18 @@ Node *inner_list() {
   return new_node_list(item, item_length);
 }
 
-Node *list() {
+Node *list(bool quoted) {
   if (consume_lparen()) {
-    return inner_list();
+    return inner_list(quoted);
   } else {
     error("expected list");
   }
 }
 
-Node *const_value();
-
 Node *quote() {
   if (consume_single_quote()) {
     Node *quote = new_node_symbol("quote", 5);
-    Node *node = const_value();
+    Node *node = const_value(1);
     Node **item = calloc(2, sizeof(Node *));
     item[0] = quote;
     item[1] = node;
@@ -459,7 +464,7 @@ Node *quote() {
   }
 }
 
-Node *const_value() {
+Node *const_value(bool quoted) {
   if (token->kind == TK_NUM) {
     return num();
   }
@@ -467,7 +472,7 @@ Node *const_value() {
     return symbol();
   }
   if (token->kind == TK_LPAREN) {
-    return list();
+    return list(quoted);
   }
   if (token->kind == TK_SINGLE_QUOTE) {
     return quote();
@@ -555,27 +560,10 @@ Node *expr() {
       expect_rparen();
       return new_node_let(symbols, symbols_length, let_value, body);
     }
-    return inner_list();
+    return inner_list(0);
   }
-  return const_value();
+  return const_value(0);
   error("unimplemented");
-}
-
-int main(int argc, char **argv) {
-  if (argc != 2) {
-    error("引数の個数が正しくありません");
-    return 1;
-  }
-
-  // トークナイズする
-  token = tokenize(argv[1]);
-  Node *node = expr();
-  if (!at_eof()) {
-    error("すべての入力が消費されませんでした。");
-  };
-  print_node(node);
-
-  return 0;
 }
 
 typedef enum IRKind {
@@ -593,7 +581,9 @@ typedef enum IRKind {
   IR_STOP,
 } IRKind;
 
-typedef struct IR {
+typedef struct IR IR;
+
+struct IR {
   IRKind kind;
   // IR_ID
   int frame;
@@ -603,4 +593,228 @@ typedef struct IR {
   Node *node1;
   // IR_SEL
   Node *cf;
-} IR;
+  // IR_IDF
+  IR **code;
+};
+
+void print_ir(IR *ir) {
+  switch (ir->kind) {
+  case IR_ID:
+    printf("ID (%d . %d);", ir->frame, ir->idx_num);
+    break;
+  case IR_IDC:
+    printf("IDC ");
+    print_node(ir->node1);
+    printf(";");
+    break;
+  case IR_IDG:
+    printf("IDG ");
+    print_node(ir->node1);
+    printf(";");
+    break;
+  case IR_IDF:
+    printf("IDF ");
+    printf("(");
+    for (int i = 0; ir->code[i] != NULL; i++) {
+      print_ir(ir->code[i]);
+    }
+    printf(");");
+    break;
+  case IR_ARGS:
+    printf("ARGS %d;", ir->idx_num);
+    break;
+  case IR_APP:
+    printf("APP;");
+    break;
+  case IR_RTN:
+    printf("RTN;");
+    break;
+  case IR_SEL:
+    printf("SEL ");
+    print_node(ir->node1);
+    printf(", ");
+    print_node(ir->cf);
+    printf(";");
+    break;
+  case IR_JOIN:
+    printf("JOIN;");
+    break;
+  case IR_POP:
+    printf("POP;");
+    break;
+  case IR_DEF:
+    printf("DEF ");
+    print_node(ir->node1);
+    printf(";");
+    break;
+  case IR_STOP:
+    printf("STOP;");
+    break;
+  default:
+    break;
+  }
+}
+
+IR *new_ir_id(int frame, int idx_num) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_ID;
+  ir->frame = frame;
+  ir->idx_num = idx_num;
+  return ir;
+}
+
+IR *new_ir_idc(Node *node1) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_IDC;
+  ir->node1 = node1;
+  return ir;
+}
+
+IR *new_ir_idg(Node *node1) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_IDG;
+  ir->node1 = node1;
+  return ir;
+}
+
+IR *new_ir_idf(IR *code[]) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_IDF;
+  ir->code = code;
+  return ir;
+}
+
+IR *new_ir_args(int n) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_ARGS;
+  ir->idx_num = n;
+  return ir;
+}
+
+IR *new_ir_app() {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_APP;
+  return ir;
+}
+
+IR *new_ir_rtn() {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_RTN;
+  return ir;
+}
+
+IR *new_ir_sel(Node *ct, Node *cf) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_SEL;
+  ir->node1 = ct;
+  ir->cf = cf;
+  return ir;
+}
+
+IR *new_ir_join() {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_JOIN;
+  return ir;
+}
+
+IR *new_ir_pop() {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_POP;
+  return ir;
+}
+
+IR *new_ir_def(Node *node1) {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_DEF;
+  ir->node1 = node1;
+  return ir;
+}
+
+IR *new_ir_stop() {
+  IR *ir = calloc(1, sizeof(IR));
+  ir->kind = IR_STOP;
+  return ir;
+}
+
+typedef struct IRArray IRArray;
+
+struct IRArray {
+  IR **ir;
+  int length;
+  int max_length;
+};
+
+void print_ir_array(IRArray *ir_array) {
+  for (int i = 0; i < ir_array->length; i++) {
+    print_ir(ir_array->ir[i]);
+    printf("\n");
+  }
+}
+
+IRArray *new_ir_array() {
+  IRArray *ir_array = calloc(1, sizeof(IRArray));
+  ir_array->ir = calloc(100, sizeof(IR *));
+  ir_array->length = 0;
+  ir_array->max_length = 100;
+  return ir_array;
+}
+
+void ir_array_push(IRArray *ir_array, IR *ir) {
+  ir_array->ir[ir_array->length] = ir;
+  ir_array->length++;
+  if (ir_array->length > ir_array->max_length) {
+    IR **new_ir = realloc(ir_array->ir, ir_array->max_length * 2);
+    if (new_ir == NULL) {
+      error("failed to realloc");
+    }
+    ir_array->ir = new_ir;
+    ir_array->max_length *= 2;
+  }
+}
+
+void *ast_to_ir(IRArray *ir_array, Node *ast) {
+  switch (ast->kind) {
+  case ND_NUM:
+    ir_array_push(ir_array, new_ir_idc(ast));
+    break;
+  case ND_TRUE:
+    ir_array_push(ir_array, new_ir_idc(ast));
+    break;
+  case ND_FALSE:
+    ir_array_push(ir_array, new_ir_idc(ast));
+    break;
+  case ND_LIST:
+    if (ast->item_length == 0) {
+      error("unexpected empty list");
+    }
+    if (ast->item[0]->kind == ND_SYMBOL &&
+        strncmp(ast->item[0]->str, "quote", ast->item[0]->str_length) == 0) {
+      if (ast->item_length != 2) {
+        error("illegal argument length for quote");
+      }
+      ir_array_push(ir_array, new_ir_idc(ast->item[1]));
+      break;
+    }
+  }
+}
+
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    error("引数の個数が正しくありません");
+    return 1;
+  }
+
+  // トークナイズする
+  token = tokenize(argv[1]);
+  Node *node = expr();
+  if (!at_eof()) {
+    error("すべての入力が消費されませんでした。");
+  };
+  // IRArray *ir_array = new_ir_array();
+  print_node(node);
+  // ast_to_ir(ir_array, node);
+  // ir_array_push(ir_array, new_ir_stop());
+  // print_ir_array(ir_array);
+
+  return 0;
+}
