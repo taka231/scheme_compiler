@@ -13,6 +13,8 @@ typedef enum {
   TK_SYMBOL,
   TK_NUM,
   TK_EOF,
+  TK_TRUE,
+  TK_FALSE,
 } TokenKind;
 
 typedef struct Token Token;
@@ -48,6 +50,12 @@ void print_token(Token *token) {
       break;
     case TK_NUM:
       printf("NUM %d\n", token->val);
+      break;
+    case TK_TRUE:
+      printf("TRUE\n");
+      break;
+    case TK_FALSE:
+      printf("FALSE\n");
       break;
     case TK_EOF:
       printf("EOF\n");
@@ -160,6 +168,17 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    if (*p == '#' && *(p + 1) == 't') {
+      cur = new_token(TK_TRUE, cur, p);
+      p += 2;
+      continue;
+    }
+    if (*p == '#' && *(p + 1) == 'f') {
+      cur = new_token(TK_FALSE, cur, p);
+      p += 2;
+      continue;
+    }
+
     if (*p == '-' && isdigit(*(p + 1))) {
       cur = new_token(TK_NUM, cur, p);
       p++;
@@ -208,6 +227,8 @@ typedef enum {
   ND_LET,
   ND_LAMBDA,
   ND_LIST,
+  ND_TRUE,
+  ND_FALSE,
 } NodeKind;
 
 typedef struct Node Node;
@@ -283,6 +304,12 @@ void print_node(Node *node) {
     }
     printf(")");
     break;
+  case ND_TRUE:
+    printf("ND_TRUE");
+    break;
+  case ND_FALSE:
+    printf("ND_FALSE");
+    break;
   default:
     break;
   }
@@ -340,6 +367,18 @@ Node *new_node_list(Node **item, int item_length) {
   return node;
 }
 
+Node *new_node_true() {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = ND_TRUE;
+  return node;
+}
+
+Node *new_node_false() {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = ND_FALSE;
+  return node;
+}
+
 Node *expr();
 
 Node *symbol() {
@@ -360,6 +399,18 @@ Node *num() {
   } else {
     error("expected number");
   }
+}
+
+Node *node_boolean() {
+  if (token->kind == TK_TRUE) {
+    token = token->next;
+    return new_node_true();
+  }
+  if (token->kind == TK_FALSE) {
+    token = token->next;
+    return new_node_false();
+  }
+  error("expected boolean");
 }
 
 Node *inner_list() {
@@ -420,6 +471,9 @@ Node *const_value() {
   }
   if (token->kind == TK_SINGLE_QUOTE) {
     return quote();
+  }
+  if (token->kind == TK_TRUE || token->kind == TK_FALSE) {
+    return node_boolean();
   }
   error("expected const value");
 }
@@ -503,22 +557,7 @@ Node *expr() {
     }
     return inner_list();
   }
-  if (token->kind == TK_LPAREN) {
-    Node *list_ = list();
-    return list_;
-  }
-  if (token->kind == TK_SYMBOL) {
-    Node *symbol_ = symbol();
-    return symbol_;
-  }
-  if (token->kind == TK_NUM) {
-    Node *num_ = num();
-    return num_;
-  }
-  if (token->kind == TK_SINGLE_QUOTE) {
-    Node *quote_ = quote();
-    return quote_;
-  }
+  return const_value();
   error("unimplemented");
 }
 
@@ -556,4 +595,12 @@ typedef enum IRKind {
 
 typedef struct IR {
   IRKind kind;
+  // IR_ID
+  int frame;
+  // IR_ID IR_ARGS
+  int idx_num;
+  // IR_IDC IR_IDG IR_IDF IR_SEL(ct) IR_DEF
+  Node *node1;
+  // IR_SEL
+  Node *cf;
 } IR;
