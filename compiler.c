@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 typedef enum {
   TK_LPAREN,
@@ -126,6 +127,9 @@ bool at_eof() { return token->kind == TK_EOF; }
 
 Token *new_token(TokenKind kind, Token *cur, char *str) {
   Token *tok = calloc(1, sizeof(Token));
+  if (tok == NULL) {
+    error("failed to calloc");
+  }
   tok->kind = kind;
   tok->str = str;
   cur->next = tok;
@@ -262,7 +266,13 @@ typedef struct NodeArray {
 
 NodeArray *new_node_array() {
   NodeArray *node_array = calloc(1, sizeof(NodeArray));
+  if (node_array == NULL) {
+    error("failed to calloc");
+  }
   node_array->node = calloc(100, sizeof(Node *));
+  if (node_array->node == NULL) {
+    error("failed to calloc");
+  }
   node_array->length = 0;
   node_array->max_length = 100;
   return node_array;
@@ -271,7 +281,7 @@ NodeArray *new_node_array() {
 void node_array_push(NodeArray *node_array, Node *node) {
   node_array->node[node_array->length] = node;
   node_array->length++;
-  if (node_array->length > node_array->max_length) {
+  if (node_array->length >= node_array->max_length) {
     Node **new_node = realloc(node_array->node, node_array->max_length * 2);
     if (new_node == NULL) {
       error("failed to realloc");
@@ -351,6 +361,9 @@ void print_node_array(NodeArray *node_array) {
 
 Node *new_node_num(int val) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_NUM;
   node->val = val;
   return node;
@@ -358,6 +371,9 @@ Node *new_node_num(int val) {
 
 Node *new_node_symbol(char *str, int length) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_SYMBOL;
   node->str = str;
   node->str_length = length;
@@ -366,6 +382,9 @@ Node *new_node_symbol(char *str, int length) {
 
 Node *new_node_define(Node *define_symbol, Node *body) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_DEFINE;
   node->define_symbol = define_symbol;
   node->body = body;
@@ -375,6 +394,9 @@ Node *new_node_define(Node *define_symbol, Node *body) {
 Node *new_node_let(Node **symbols, int symbols_length, Node **let_value,
                    Node *body) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_LET;
   node->symbols = symbols;
   node->symbols_length = symbols_length;
@@ -386,6 +408,9 @@ Node *new_node_let(Node **symbols, int symbols_length, Node **let_value,
 Node *new_node_lambda(Node **symbols, int symbols_length, Node *body,
                       int body_length) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_LAMBDA;
   node->symbols = symbols;
   node->symbols_length = symbols_length;
@@ -395,6 +420,9 @@ Node *new_node_lambda(Node **symbols, int symbols_length, Node *body,
 
 Node *new_node_list(Node **item, int item_length) {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_LIST;
   node->item = item;
   node->item_length = item_length;
@@ -403,12 +431,18 @@ Node *new_node_list(Node **item, int item_length) {
 
 Node *new_node_true() {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_TRUE;
   return node;
 }
 
 Node *new_node_false() {
   Node *node = calloc(1, sizeof(Node));
+  if (node == NULL) {
+    error("failed to calloc");
+  }
   node->kind = ND_FALSE;
   return node;
 }
@@ -452,6 +486,9 @@ Node *const_value(bool quoted);
 Node *inner_list(bool quoted) {
   int max_item_length = 10;
   Node **item = calloc(max_item_length, sizeof(Node *));
+  if (item == NULL) {
+    error("failed to calloc");
+  }
   int item_length = 0;
   while (!consume_rparen()) {
     if (quoted) {
@@ -490,6 +527,9 @@ Node *quote() {
     Node *quote = new_node_symbol("quote", 5);
     Node *node = const_value(1);
     Node **item = calloc(2, sizeof(Node *));
+    if (item == NULL) {
+      error("failed to calloc");
+    }
     item[0] = quote;
     item[1] = node;
     return new_node_list(item, 2);
@@ -535,6 +575,9 @@ Node *expr() {
       token = token->next;
       int max_symbols_length = 10;
       Node **symbols = calloc(max_symbols_length, sizeof(Node *));
+      if (symbols == NULL) {
+        error("failed to calloc");
+      }
       int symbols_length = 0;
       expect_lparen();
       while (!consume_rparen()) {
@@ -562,7 +605,13 @@ Node *expr() {
       token = token->next;
       int max_symbols_length = 10;
       Node **symbols = calloc(max_symbols_length, sizeof(Node *));
+      if (symbols == NULL) {
+        error("failed to calloc");
+      }
       Node **let_value = calloc(max_symbols_length, sizeof(Node *));
+      if (let_value == NULL) {
+        error("failed to calloc");
+      }
       int symbols_length = 0;
       expect_lparen();
       while (!consume_rparen()) {
@@ -613,6 +662,8 @@ typedef enum IRKind {
   IR_POP,
   IR_DEF,
   IR_STOP,
+  IR_SELRTN,
+  IR_TAILAPP
 } IRKind;
 
 typedef struct IR IR;
@@ -696,13 +747,34 @@ void print_ir(IR *ir) {
   case IR_STOP:
     printf("STOP;");
     break;
+  case IR_SELRTN:
+    printf("SELRTN ");
+    printf("(");
+    for (int i = 0; i < ir->code->length; i++) {
+      print_ir(ir->code->ir[i]);
+      printf(", ");
+    }
+    printf("), (");
+    for (int i = 0; i < ir->cf->length; i++) {
+      print_ir(ir->cf->ir[i]);
+      printf(", ");
+    }
+    printf(");");
+    break;
+  case IR_TAILAPP:
+    printf("TAILAPP;");
+    break;
   default:
+    error("unimplemented");
     break;
   }
 }
 
 IR *new_ir_id(int frame, int idx_num) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_LD;
   ir->frame = frame;
   ir->idx_num = idx_num;
@@ -711,6 +783,9 @@ IR *new_ir_id(int frame, int idx_num) {
 
 IR *new_ir_idc(Node *node1) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_LDC;
   ir->node1 = node1;
   return ir;
@@ -718,6 +793,9 @@ IR *new_ir_idc(Node *node1) {
 
 IR *new_ir_idg(int frame) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_LDG;
   ir->frame = frame;
   return ir;
@@ -725,6 +803,9 @@ IR *new_ir_idg(int frame) {
 
 IR *new_ir_idf(IRArray *code) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_LDF;
   ir->code = code;
   return ir;
@@ -732,6 +813,9 @@ IR *new_ir_idf(IRArray *code) {
 
 IR *new_ir_args(int n) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_ARGS;
   ir->idx_num = n;
   return ir;
@@ -739,18 +823,27 @@ IR *new_ir_args(int n) {
 
 IR *new_ir_app() {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_APP;
   return ir;
 }
 
 IR *new_ir_rtn() {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_RTN;
   return ir;
 }
 
 IR *new_ir_sel(IRArray *ct, IRArray *cf) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_SEL;
   ir->code = ct;
   ir->cf = cf;
@@ -759,18 +852,27 @@ IR *new_ir_sel(IRArray *ct, IRArray *cf) {
 
 IR *new_ir_join() {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_JOIN;
   return ir;
 }
 
 IR *new_ir_pop() {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_POP;
   return ir;
 }
 
 IR *new_ir_def(int frame) {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_DEF;
   ir->frame = frame;
   return ir;
@@ -778,6 +880,9 @@ IR *new_ir_def(int frame) {
 
 IR *new_ir_stop() {
   IR *ir = calloc(1, sizeof(IR));
+  if (ir == NULL) {
+    error("failed to calloc");
+  }
   ir->kind = IR_STOP;
   return ir;
 }
@@ -791,7 +896,13 @@ void print_ir_array(IRArray *ir_array) {
 
 IRArray *new_ir_array() {
   IRArray *ir_array = calloc(1, sizeof(IRArray));
+  if (ir_array == NULL) {
+    error("failed to calloc");
+  }
   ir_array->ir = calloc(100, sizeof(IR *));
+  if (ir_array->ir == NULL) {
+    error("failed to calloc");
+  }
   ir_array->length = 0;
   ir_array->ir_idx = 0;
   ir_array->max_length = 100;
@@ -801,7 +912,7 @@ IRArray *new_ir_array() {
 void ir_array_push(IRArray *ir_array, IR *ir) {
   ir_array->ir[ir_array->length] = ir;
   ir_array->length++;
-  if (ir_array->length > ir_array->max_length) {
+  if (ir_array->length >= ir_array->max_length) {
     IR **new_ir = realloc(ir_array->ir, ir_array->max_length * 2);
     if (new_ir == NULL) {
       error("failed to realloc");
@@ -894,6 +1005,9 @@ void print_value(Value *value) {
 
 Value *new_value_int(int val) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueInt;
   value->val = val;
   return value;
@@ -901,6 +1015,9 @@ Value *new_value_int(int val) {
 
 Value *new_value_bool(bool bool_val) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueBool;
   value->bool_val = bool_val;
   return value;
@@ -908,6 +1025,9 @@ Value *new_value_bool(bool bool_val) {
 
 Value *new_value_symbol(char *str) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueSymbol;
   value->str = str;
   return value;
@@ -915,6 +1035,9 @@ Value *new_value_symbol(char *str) {
 
 Value *new_value_list(Value *car, Value *cdr) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueList;
   value->car = car;
   value->cdr = cdr;
@@ -923,6 +1046,9 @@ Value *new_value_list(Value *car, Value *cdr) {
 
 Value *new_value_closure(Environment *env, IRArray *code) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueClosure;
   value->env = env;
   value->code = code;
@@ -931,6 +1057,9 @@ Value *new_value_closure(Environment *env, IRArray *code) {
 
 Value *new_value_primitive(char *primitive_name) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValuePrimitive;
   value->primitive_name = primitive_name;
   return value;
@@ -938,12 +1067,18 @@ Value *new_value_primitive(char *primitive_name) {
 
 Value *new_value_nil() {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueNil;
   return value;
 };
 
 Value *new_value_frame(Frame *frame) {
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   value->kind = ValueFrame;
   value->frame = frame;
   return value;
@@ -958,8 +1093,17 @@ struct Frame {
 
 Frame *new_frame(int size) {
   Frame *frame = calloc(1, sizeof(Frame));
+  if (frame == NULL) {
+    error("failed to calloc");
+  }
   frame->value = calloc(size, sizeof(Value *));
+  if (frame->value == NULL) {
+    error("failed to calloc");
+  }
   frame->symbol = calloc(size, sizeof(char *));
+  if (frame->symbol == NULL) {
+    error("failed to calloc");
+  }
   frame->length = 0;
   frame->max_length = size;
   return frame;
@@ -968,6 +1112,9 @@ Frame *new_frame(int size) {
 void frame_new_symbol(Frame *frame, char *symbol) {
   frame->symbol[frame->length] = symbol;
   Value *value = calloc(1, sizeof(Value));
+  if (value == NULL) {
+    error("failed to calloc");
+  }
   frame->value[frame->length] = value;
   frame->length++;
   if (frame->length > frame->max_length) {
@@ -993,6 +1140,9 @@ int frame_find_symbol(Frame *frame, char *symbol) {
 
 Value *frame_get_value(Frame *frame, int idx_num) {
   Value *copy_value = calloc(1, sizeof(Value));
+  if (copy_value == NULL) {
+    error("failed to calloc");
+  }
   memcpy(copy_value, frame->value[idx_num], sizeof(Value));
   return copy_value;
 }
@@ -1005,7 +1155,13 @@ struct Environment {
 
 Environment *new_environment(int size) {
   Environment *environment = calloc(1, sizeof(Environment));
+  if (environment == NULL) {
+    error("failed to calloc");
+  }
   environment->frame = calloc(size, sizeof(Frame *));
+  if (environment->frame == NULL) {
+    error("failed to calloc");
+  }
   environment->length = 0;
   environment->max_length = size;
   return environment;
@@ -1014,7 +1170,7 @@ Environment *new_environment(int size) {
 void environment_push(Environment *environment, Frame *frame) {
   environment->frame[environment->length] = frame;
   environment->length++;
-  if (environment->length > environment->max_length) {
+  if (environment->length >= environment->max_length) {
     Frame **new_frame =
         realloc(environment->frame, environment->max_length * 2);
     if (new_frame == NULL) {
@@ -1071,7 +1227,7 @@ void globalenv_push_default(char *symbol, Value *value) {
   GlobalEnvironment->symbol[GlobalEnvironment->length] = symbol;
   GlobalEnvironment->value[GlobalEnvironment->length] = value;
   GlobalEnvironment->length++;
-  if (GlobalEnvironment->length > GlobalEnvironment->max_length) {
+  if (GlobalEnvironment->length >= GlobalEnvironment->max_length) {
     Value **new_value =
         realloc(GlobalEnvironment->value, GlobalEnvironment->max_length * 2);
     char **new_symbol =
@@ -1082,6 +1238,31 @@ void globalenv_push_default(char *symbol, Value *value) {
     GlobalEnvironment->value = new_value;
     GlobalEnvironment->symbol = new_symbol;
     GlobalEnvironment->max_length *= 2;
+  }
+}
+
+void tail_call_optimization(IRArray *ir_array) {
+  if (ir_array->length < 2) {
+    return;
+  }
+  IR *ir1 = ir_array->ir[ir_array->length - 1];
+  IR *ir2 = ir_array->ir[ir_array->length - 2];
+  if (ir1->kind != IR_RTN) {
+    return;
+  }
+  if (ir2->kind == IR_APP) {
+    ir2->kind = IR_TAILAPP;
+    return;
+  } else if (ir2->kind == IR_SEL) {
+    IRArray *ct = ir2->code;
+    IRArray *cf = ir2->cf;
+    ct->ir[ct->length - 1]->kind = IR_RTN;
+    cf->ir[cf->length - 1]->kind = IR_RTN;
+    ir2->kind = IR_SELRTN;
+    tail_call_optimization(ct);
+    tail_call_optimization(cf);
+    ir_array->length -= 1;
+    return;
   }
 }
 
@@ -1098,6 +1279,9 @@ void *ast_to_ir(IRArray *ir_array, Node *ast, Environment *env) {
     break;
   case ND_SYMBOL: {
     char *symbol_name = calloc(ast->str_length + 1, sizeof(char));
+    if (symbol_name == NULL) {
+      error("failed to calloc");
+    }
     strncpy(symbol_name, ast->str, ast->str_length);
     Index index = environment_find_symbol(env, symbol_name);
     if (index.frame == -1) {
@@ -1156,6 +1340,9 @@ void *ast_to_ir(IRArray *ir_array, Node *ast, Environment *env) {
     }
     char *symbol_name =
         calloc(ast->define_symbol->str_length + 1, sizeof(char));
+    if (symbol_name == NULL) {
+      error("failed to calloc");
+    }
     strncpy(symbol_name, ast->define_symbol->str,
             ast->define_symbol->str_length);
     int frame = frame_find_symbol(GlobalEnvironment, symbol_name);
@@ -1173,12 +1360,16 @@ void *ast_to_ir(IRArray *ir_array, Node *ast, Environment *env) {
     Frame *frame = new_frame(10);
     for (int i = 0; i < ast->symbols_length; i++) {
       char *symbol_name = calloc(ast->symbols[i]->str_length + 1, sizeof(char));
+      if (symbol_name == NULL) {
+        error("failed to calloc");
+      }
       strncpy(symbol_name, ast->symbols[i]->str, ast->symbols[i]->str_length);
       frame_new_symbol(frame, symbol_name);
     }
     environment_push(env, frame);
     ast_to_ir(body, ast->body, env);
     ir_array_push(body, new_ir_rtn());
+    tail_call_optimization(body);
     environment_pop(env);
     ir_array_push(ir_array, new_ir_idf(body));
     break;
@@ -1214,13 +1405,25 @@ struct SEC {
 
 SECD *new_secd(int stack_size, int dump_size, Environment *env, IRArray *code) {
   SECD *secd = calloc(1, sizeof(SECD));
+  if (secd == NULL) {
+    error("failed to calloc");
+  }
   secd->stack = calloc(stack_size, sizeof(Value *));
+  if (secd->stack == NULL) {
+    error("failed to calloc");
+  }
   secd->stack_length = 0;
   secd->stack_max_length = stack_size;
   secd->env = env;
   secd->code = code;
   secd->dump = calloc(1, sizeof(Dump));
+  if (secd->dump == NULL) {
+    error("failed to calloc");
+  }
   secd->dump->sec = calloc(dump_size, sizeof(SEC *));
+  if (secd->dump->sec == NULL) {
+    error("failed to calloc");
+  }
   secd->dump->length = 0;
   secd->dump->max_length = dump_size;
   return secd;
@@ -1228,7 +1431,13 @@ SECD *new_secd(int stack_size, int dump_size, Environment *env, IRArray *code) {
 
 SEC *new_sec(int stack_size, Environment *env, IRArray *code) {
   SEC *sec = calloc(1, sizeof(SEC));
+  if (sec == NULL) {
+    error("failed to calloc");
+  }
   sec->stack = calloc(stack_size, sizeof(Value *));
+  if (sec->stack == NULL) {
+    error("failed to calloc");
+  }
   sec->stack_length = 0;
   sec->stack_max_length = stack_size;
   sec->env = env;
@@ -1239,7 +1448,7 @@ SEC *new_sec(int stack_size, Environment *env, IRArray *code) {
 void stack_push(SECD *secd, Value *value) {
   secd->stack[secd->stack_length] = value;
   secd->stack_length++;
-  if (secd->stack_length > secd->stack_max_length) {
+  if (secd->stack_length >= secd->stack_max_length) {
     Value **new_stack = realloc(secd->stack, secd->stack_max_length * 2);
     if (new_stack == NULL) {
       error("failed to realloc");
@@ -1261,13 +1470,9 @@ Value *stack_pop(SECD *secd) {
 void dump_push(Dump *dump, SEC *sec) {
   dump->sec[dump->length] = sec;
   dump->length++;
-  if (dump->length > dump->max_length) {
-    SEC **new_sec = realloc(dump->sec, dump->max_length * 2);
-    if (new_sec == NULL) {
-      error("failed to realloc");
-    }
-    dump->sec = new_sec;
-    dump->max_length *= 2;
+  if (dump->length >= dump->max_length) {
+    printf("dump overflow\n");
+    exit(1);
   }
 }
 
@@ -1290,6 +1495,9 @@ Value *const_node_to_value(Node *node) {
     return new_value_bool(false);
   case ND_SYMBOL: {
     char *symbol_name = calloc(node->str_length + 1, sizeof(char));
+    if (symbol_name == NULL) {
+      error("failed to calloc");
+    }
     strncpy(symbol_name, node->str, node->str_length);
     return new_value_symbol(symbol_name);
   }
@@ -1321,8 +1529,8 @@ void run_virtual_machine(SECD *secd) {
     // printf("ir: ");
     // print_ir(ir);
     // printf("%d", secd->code->ir_idx);
-    //
     // printf("\n");
+
     secd->code->ir_idx++;
     switch (ir->kind) {
     case IR_LD: {
@@ -1356,6 +1564,7 @@ void run_virtual_machine(SECD *secd) {
       stack_push(secd, new_value_frame(frame));
       break;
     }
+    case IR_TAILAPP:
     case IR_APP: {
       Value *func = stack_pop(secd);
       Value *args = stack_pop(secd);
@@ -1427,10 +1636,13 @@ void run_virtual_machine(SECD *secd) {
           }
           stack_push(secd, result);
         }
-      } else if (func->kind == ValueClosure) {
+      } else if (ir->kind == IR_APP && func->kind == ValueClosure) {
         Frame *frame = new_frame(args->frame->length);
         frame->value = args->frame->value;
         IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
         memcpy(code, func->code, sizeof(IRArray));
         SEC *sec = new_sec(secd->stack_length, secd->env, secd->code);
         sec->stack = secd->stack;
@@ -1440,10 +1652,25 @@ void run_virtual_machine(SECD *secd) {
         environment_push(env, frame);
         secd->stack_max_length = 100;
         secd->stack = calloc(secd->stack_max_length, sizeof(Value *));
+        if (secd->stack == NULL) {
+          error("failed to calloc");
+        }
         secd->stack_length = 0;
         secd->env = env;
         secd->code = code;
         dump_push(secd->dump, sec);
+      } else if (ir->kind == IR_TAILAPP && func->kind == ValueClosure) {
+        Frame *frame = new_frame(args->frame->length);
+        frame->value = args->frame->value;
+        IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
+        memcpy(code, func->code, sizeof(IRArray));
+        Environment *env = deepcopy_environment(func->env);
+        environment_push(env, frame);
+        secd->env = env;
+        secd->code = code;
       } else {
         error("expected closure");
       }
@@ -1465,15 +1692,40 @@ void run_virtual_machine(SECD *secd) {
       if (cond->kind == ValueBool && !cond->bool_val) {
         SEC *sec = new_sec(0, secd->env, secd->code);
         IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
         memcpy(code, ir->cf, sizeof(IRArray));
         secd->code = code;
         dump_push(secd->dump, sec);
       } else {
         SEC *sec = new_sec(0, secd->env, secd->code);
         IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
         memcpy(code, ir->code, sizeof(IRArray));
         secd->code = code;
         dump_push(secd->dump, sec);
+      }
+      break;
+    }
+    case IR_SELRTN: {
+      Value *cond = stack_pop(secd);
+      if (cond->kind == ValueBool && !cond->bool_val) {
+        IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
+        memcpy(code, ir->cf, sizeof(IRArray));
+        secd->code = code;
+      } else {
+        IRArray *code = calloc(1, sizeof(IRArray));
+        if (code == NULL) {
+          error("failed to calloc");
+        }
+        memcpy(code, ir->code, sizeof(IRArray));
+        secd->code = code;
       }
       break;
     }
@@ -1513,6 +1765,7 @@ int main(int argc, char **argv) {
   globalenv_push_default("cdr", new_value_primitive("cdr"));
   globalenv_push_default("cons", new_value_primitive("cons"));
 
+  clock_t start = clock();
   // トークナイズする
   token = tokenize(argv[1]);
 
@@ -1529,8 +1782,10 @@ int main(int argc, char **argv) {
   ir_array_push(ir_array, new_ir_stop());
   // print_ir_array(ir_array);
 
-  SECD *secd = new_secd(100, 10000, env, ir_array);
+  SECD *secd = new_secd(100, 1000000, env, ir_array);
   run_virtual_machine(secd);
+  clock_t end = clock();
+  printf("%f ms\n", (double)(end - start) / CLOCKS_PER_SEC * 1000);
   Value *value = stack_pop(secd);
   print_value(value);
 
