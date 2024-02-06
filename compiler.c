@@ -1635,6 +1635,51 @@ void run_virtual_machine(SECD *secd) {
             }
           }
           stack_push(secd, result);
+        } else if (strcmp(func->primitive_name, "<") == 0) {
+          Value *result = new_value_bool(true);
+          for (int i = 0; i < args->frame->length - 1; i++) {
+            Value *value1 = args->frame->value[i];
+            Value *value2 = args->frame->value[i + 1];
+            if (value1->kind != ValueInt || value2->kind != ValueInt) {
+              error("expected int");
+            }
+            if (value1->val >= value2->val) {
+              result->bool_val = false;
+              break;
+            }
+          }
+          stack_push(secd, result);
+        } else if (strcmp(func->primitive_name, "car") == 0) {
+          if (args->frame->length != 1) {
+            error("wrong argument length");
+          }
+          Value *value = args->frame->value[0];
+          if (value->kind != ValueList) {
+            error("expected list");
+          }
+          stack_push(secd, value->car);
+        } else if (strcmp(func->primitive_name, "cdr") == 0) {
+          if (args->frame->length != 1) {
+            error("wrong argument length");
+          }
+          Value *value = args->frame->value[0];
+          if (value->kind != ValueList) {
+            error("expected list");
+          }
+          stack_push(secd, value->cdr);
+        } else if (strcmp(func->primitive_name, "cons") == 0) {
+          if (args->frame->length != 2) {
+            error("wrong argument length");
+          }
+          Value *value1 = args->frame->value[0];
+          Value *value2 = args->frame->value[1];
+          stack_push(secd, new_value_list(value1, value2));
+        } else if (strcmp(func->primitive_name, "null?") == 0) {
+          if (args->frame->length != 1) {
+            error("wrong argument length");
+          }
+          Value *value = args->frame->value[0];
+          stack_push(secd, new_value_bool(value->kind == ValueNil));
         }
       } else if (ir->kind == IR_APP && func->kind == ValueClosure) {
         Frame *frame = new_frame(args->frame->length);
@@ -1764,6 +1809,7 @@ int main(int argc, char **argv) {
   globalenv_push_default("car", new_value_primitive("car"));
   globalenv_push_default("cdr", new_value_primitive("cdr"));
   globalenv_push_default("cons", new_value_primitive("cons"));
+  globalenv_push_default("null?", new_value_primitive("null?"));
 
   clock_t start = clock();
   // トークナイズする
